@@ -58,8 +58,12 @@ func InstallFile(filename string, opts ...Option) error {
 
 func installCertificate(filename string, cert *x509.Certificate, opts []Option) error {
 	o := newOptions(opts)
-	if o.withJava {
-
+	if o.withJava && hasJava {
+		if !checkJava(cert) {
+			if err := installJava(filename, cert); err != nil {
+				return err
+			}
+		}
 	}
 	if o.withFirefox && hasNSS() {
 		if !checkNSS(cert) {
@@ -99,7 +103,9 @@ func UninstallFile(filename string, opts ...Option) error {
 func uninstallCertificate(filename string, cert *x509.Certificate, opts []Option) error {
 	o := newOptions(opts)
 	if o.withJava {
-
+		if err := uninstallJava(filename, cert); err != nil {
+			return err
+		}
 	}
 	if o.withFirefox && checkNSS(cert) {
 		if err := uninstallNSS(filename, cert); err != nil {

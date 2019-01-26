@@ -1,7 +1,5 @@
-// +build ignore
-// Copyright 2018 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
+// Copyright (c) 2018 The truststore Authors. All rights reserved.
+// Copyright (c) 2018 The mkcert Authors. All rights reserved.
 
 package truststore
 
@@ -55,10 +53,12 @@ func init() {
 		if err == nil {
 			cacertsPath = filepath.Join(v, "jre", "lib", "security", "cacerts")
 		}
+
+		println(cacertsPath)
 	}
 }
 
-func (m *mkcert) checkJava() bool {
+func checkJava(cert *x509.Certificate) bool {
 	if !hasKeytool {
 		return false
 	}
@@ -72,46 +72,57 @@ func (m *mkcert) checkJava() bool {
 	}
 
 	keytoolOutput, err := exec.Command(keytoolPath, "-list", "-keystore", cacertsPath, "-storepass", storePass).CombinedOutput()
-	fatalIfCmdErr(err, "keytool -list", keytoolOutput)
+	if err != nil {
+		debug("failed to execute \"keytool -list\": %s\n\n%s", err, keytoolOutput)
+		return false
+	}
+
 	// keytool outputs SHA1 and SHA256 (Java 9+) certificates in uppercase hex
 	// with each octet pair delimitated by ":". Drop them from the keytool output
 	keytoolOutput = bytes.Replace(keytoolOutput, []byte(":"), nil, -1)
 
 	// pre-Java 9 uses SHA1 fingerprints
 	s1, s256 := sha1.New(), sha256.New()
-	return exists(m.caCert, s1, keytoolOutput) || exists(m.caCert, s256, keytoolOutput)
+	return exists(cert, s1, keytoolOutput) || exists(cert, s256, keytoolOutput)
 }
 
-func (m *mkcert) installJava() {
+func installJava(filename string, cert *x509.Certificate) error {
 	args := []string{
 		"-importcert", "-noprompt",
 		"-keystore", cacertsPath,
 		"-storepass", storePass,
-		"-file", filepath.Join(m.CAROOT, rootName),
-		"-alias", m.caUniqueName(),
+		"-file", filename,
+		"-alias", uniqueName(cert),
 	}
 
-	out, err := m.execKeytool(exec.Command(keytoolPath, args...))
-	fatalIfCmdErr(err, "keytool -importcert", out)
+	out, err := execKeytool(exec.Command(keytoolPath, args...))
+	if err != nil {
+		return cmdError(err, "keytool -importcert", out)
+	}
+
+	return nil
 }
 
-func (m *mkcert) uninstallJava() {
+func uninstallJava(filename string, cert *x509.Certificate) error {
 	args := []string{
 		"-delete",
-		"-alias", m.caUniqueName(),
+		"-alias", uniqueName(cert),
 		"-keystore", cacertsPath,
 		"-storepass", storePass,
 	}
-	out, err := m.execKeytool(exec.Command(keytoolPath, args...))
+	out, err := execKeytool(exec.Command(keytoolPath, args...))
 	if bytes.Contains(out, []byte("does not exist")) {
-		return // cert didn't exist
+		return nil
 	}
-	fatalIfCmdErr(err, "keytool -delete", out)
+	if err != nil {
+		cmdError(err, "keytool -delete", out)
+	}
+	return nil
 }
 
 // execKeytool will execute a "keytool" command and if needed re-execute
 // the command wrapped in 'sudo' to work around file permissions.
-func (m *mkcert) execKeytool(cmd *exec.Cmd) ([]byte, error) {
+func execKeytool(cmd *exec.Cmd) ([]byte, error) {
 	out, err := cmd.CombinedOutput()
 	if err != nil && bytes.Contains(out, []byte("java.io.FileNotFoundException")) && runtime.GOOS != "windows" {
 		origArgs := cmd.Args[1:]
