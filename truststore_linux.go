@@ -14,10 +14,8 @@ import (
 )
 
 var (
-	FirefoxProfile      = os.Getenv("HOME") + "/.mozilla/firefox/*"
+	NSSProfile          = os.Getenv("HOME") + "/.mozilla/firefox/*"
 	CertutilInstallHelp = `apt install libnss3-tools" or "yum install nss-tools`
-	NSSBrowsers         = "Firefox and/or Chrome/Chromium"
-
 	SystemTrustFilename string
 	SystemTrustCommand  []string
 )

@@ -6,24 +6,11 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"os"
-)
-
-var (
-	// ErrNotSupported is the error to indicate that the install of the
-	// certificate is not supported on the system.
-	ErrNotSupported = errors.New("install is not supported on this system")
-
-	// ErrNotFound is the error to indicate that a cert was not found.
-	ErrNotFound = errors.New("no certs found")
-
-	// ErrInvalidCertificate is the error to indicate that a cert contains bad data.
-	ErrInvalidCertificate = errors.New("invalid PEM data")
 )
 
 var prefix = "Truststore Development CA "
@@ -33,6 +20,17 @@ func debug(format string, args ...interface{}) {
 	if enableDebug {
 		log.Printf(format, args...)
 	}
+}
+
+// Trust is the interface that non-system trustores implement to add and remove
+// a certificate on its trustore. Right now we there are two implementations of
+// trust NSS (Firefox) and Java.
+type Trust interface {
+	Name() string
+	Install(filename string, cert *x509.Certificate) error
+	Uninstall(filename string, cert *x509.Certificate) error
+	Exists(cert *x509.Certificate) bool
+	PreCheck() error
 }
 
 // Install installs the given certificate into the system truststore, and
@@ -58,20 +56,19 @@ func InstallFile(filename string, opts ...Option) error {
 
 func installCertificate(filename string, cert *x509.Certificate, opts []Option) error {
 	o := newOptions(opts)
-	if o.withJava && hasJava {
-		if !checkJava(cert) {
-			if err := installJava(filename, cert); err != nil {
+
+	for _, t := range o.trusts {
+		if err := t.PreCheck(); err != nil {
+			debug(err.Error())
+			continue
+		}
+		if !t.Exists(cert) {
+			if err := t.Install(filename, cert); err != nil {
 				return err
 			}
 		}
 	}
-	if o.withFirefox && hasNSS() {
-		if !checkNSS(cert) {
-			if err := installNSS(filename, cert); err != nil {
-				return err
-			}
-		}
-	}
+
 	if o.withNoSystem {
 		return nil
 	}
@@ -102,16 +99,17 @@ func UninstallFile(filename string, opts ...Option) error {
 
 func uninstallCertificate(filename string, cert *x509.Certificate, opts []Option) error {
 	o := newOptions(opts)
-	if o.withJava {
-		if err := uninstallJava(filename, cert); err != nil {
+
+	for _, t := range o.trusts {
+		if err := t.PreCheck(); err != nil {
+			debug(err.Error())
+			continue
+		}
+		if err := t.Uninstall(filename, cert); err != nil {
 			return err
 		}
 	}
-	if o.withFirefox && checkNSS(cert) {
-		if err := uninstallNSS(filename, cert); err != nil {
-			return err
-		}
-	}
+
 	if o.withNoSystem {
 		return nil
 	}
@@ -155,13 +153,15 @@ func SaveCertificate(filename string, cert *x509.Certificate) error {
 }
 
 type options struct {
-	withJava     bool
-	withFirefox  bool
 	withNoSystem bool
+	trusts       map[string]Trust
 }
 
 func newOptions(opts []Option) *options {
-	o := new(options)
+	o := &options{
+		trusts: make(map[string]Trust),
+	}
+
 	for _, fn := range opts {
 		fn(o)
 	}
@@ -171,20 +171,25 @@ func newOptions(opts []Option) *options {
 // Option is the type used to pass custom options.
 type Option func(*options)
 
+// WithTrust enables the given trust.
+func WithTrust(t Trust) Option {
+	return func(o *options) {
+		o.trusts[t.Name()] = t
+	}
+}
+
 // WithJava enables the install or uninstall of a certificate in the Java
 // truststore.
 func WithJava() Option {
-	return func(o *options) {
-		o.withJava = true
-	}
+	t, _ := NewJavaTrust()
+	return WithTrust(t)
 }
 
 // WithFirefox enables the install or uninstall of a certificate in the Firefox
 // truststore.
 func WithFirefox() Option {
-	return func(o *options) {
-		o.withFirefox = true
-	}
+	t, _ := NewNSSTrust()
+	return WithTrust(t)
 }
 
 // WithNoSystem disables the install or uninstall of a certificate in the system

@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
+	"fmt"
 	"hash"
 	"os"
 	"os/exec"
@@ -17,49 +18,94 @@ import (
 	"strings"
 )
 
-var (
-	hasJava    bool
-	hasKeytool bool
+// JavaStorePass is the default store password of the keystore.
+var JavaStorePass = "changeit"
 
-	javaHome    string
-	cacertsPath string
+// JavaTrust implements a Trust for the Java runtime.
+type JavaTrust struct {
 	keytoolPath string
-	storePass   string = "changeit"
-)
-
-func init() {
-	if runtime.GOOS == "windows" {
-		keytoolPath = filepath.Join("bin", "keytool.exe")
-	} else {
-		keytoolPath = filepath.Join("bin", "keytool")
-	}
-
-	if v := os.Getenv("JAVA_HOME"); v != "" {
-		hasJava = true
-		javaHome = v
-
-		_, err := os.Stat(filepath.Join(v, keytoolPath))
-		if err == nil {
-			hasKeytool = true
-			keytoolPath = filepath.Join(v, keytoolPath)
-		}
-
-		_, err = os.Stat(filepath.Join(v, "lib", "security", "cacerts"))
-		if err == nil {
-			cacertsPath = filepath.Join(v, "lib", "security", "cacerts")
-		}
-
-		_, err = os.Stat(filepath.Join(v, "jre", "lib", "security", "cacerts"))
-		if err == nil {
-			cacertsPath = filepath.Join(v, "jre", "lib", "security", "cacerts")
-		}
-
-		println(cacertsPath)
-	}
+	cacertsPath string
 }
 
-func checkJava(cert *x509.Certificate) bool {
-	if !hasKeytool {
+// NewJavaTrust initializes a new JavaTrust if the environment has java installed.
+func NewJavaTrust() (*JavaTrust, error) {
+	home := os.Getenv("JAVA_HOME")
+	if home != "" {
+		return nil, ErrTrustNotFound
+	}
+
+	var keytoolPath, cacertsPath string
+	if runtime.GOOS == "windows" {
+		keytoolPath = filepath.Join(home, "bin", "keytool.exe")
+	} else {
+		keytoolPath = filepath.Join(home, "bin", "keytool")
+	}
+
+	if _, err := os.Stat(keytoolPath); err != nil {
+		return nil, ErrTrustNotFound
+	}
+
+	_, err := os.Stat(filepath.Join(home, "lib", "security", "cacerts"))
+	if err == nil {
+		cacertsPath = filepath.Join(home, "lib", "security", "cacerts")
+	}
+
+	_, err = os.Stat(filepath.Join(home, "jre", "lib", "security", "cacerts"))
+	if err == nil {
+		cacertsPath = filepath.Join(home, "jre", "lib", "security", "cacerts")
+	}
+
+	return &JavaTrust{
+		keytoolPath: keytoolPath,
+		cacertsPath: cacertsPath,
+	}, nil
+}
+
+// Name implement the Trust interface.
+func (t *JavaTrust) Name() string {
+	return "java"
+}
+
+// Install implements the Trust interface.
+func (t *JavaTrust) Install(filename string, cert *x509.Certificate) error {
+	args := []string{
+		"-importcert", "-noprompt",
+		"-keystore", t.cacertsPath,
+		"-storepass", JavaStorePass,
+		"-file", filename,
+		"-alias", uniqueName(cert),
+	}
+
+	cmd := exec.Command(t.keytoolPath, args...)
+	if out, err := execKeytool(cmd); err != nil {
+		return NewCmdError(err, cmd, out)
+	}
+	return nil
+}
+
+// Uninstall implements the Trust interface.
+func (t *JavaTrust) Uninstall(filename string, cert *x509.Certificate) error {
+	args := []string{
+		"-delete",
+		"-alias", uniqueName(cert),
+		"-keystore", t.cacertsPath,
+		"-storepass", JavaStorePass,
+	}
+
+	cmd := exec.Command(t.keytoolPath, args...)
+	out, err := execKeytool(cmd)
+	if bytes.Contains(out, []byte("does not exist")) {
+		return nil
+	}
+	if err != nil {
+		return NewCmdError(err, cmd, out)
+	}
+	return nil
+}
+
+// Exists implements the Trust interface.
+func (t *JavaTrust) Exists(cert *x509.Certificate) bool {
+	if t == nil {
 		return false
 	}
 
@@ -71,7 +117,8 @@ func checkJava(cert *x509.Certificate) bool {
 		return bytes.Contains(keytoolOutput, []byte(fp))
 	}
 
-	keytoolOutput, err := exec.Command(keytoolPath, "-list", "-keystore", cacertsPath, "-storepass", storePass).CombinedOutput()
+	cmd := exec.Command(t.keytoolPath, "-list", "-keystore", t.cacertsPath, "-storepass", JavaStorePass)
+	keytoolOutput, err := cmd.CombinedOutput()
 	if err != nil {
 		debug("failed to execute \"keytool -list\": %s\n\n%s", err, keytoolOutput)
 		return false
@@ -86,38 +133,12 @@ func checkJava(cert *x509.Certificate) bool {
 	return exists(cert, s1, keytoolOutput) || exists(cert, s256, keytoolOutput)
 }
 
-func installJava(filename string, cert *x509.Certificate) error {
-	args := []string{
-		"-importcert", "-noprompt",
-		"-keystore", cacertsPath,
-		"-storepass", storePass,
-		"-file", filename,
-		"-alias", uniqueName(cert),
-	}
-
-	out, err := execKeytool(exec.Command(keytoolPath, args...))
-	if err != nil {
-		return cmdError(err, "keytool -importcert", out)
-	}
-
-	return nil
-}
-
-func uninstallJava(filename string, cert *x509.Certificate) error {
-	args := []string{
-		"-delete",
-		"-alias", uniqueName(cert),
-		"-keystore", cacertsPath,
-		"-storepass", storePass,
-	}
-	out, err := execKeytool(exec.Command(keytoolPath, args...))
-	if bytes.Contains(out, []byte("does not exist")) {
+// PreCheck implements the Trust interface.
+func (t *JavaTrust) PreCheck() error {
+	if t != nil {
 		return nil
 	}
-	if err != nil {
-		cmdError(err, "keytool -delete", out)
-	}
-	return nil
+	return fmt.Errorf("define JAVA_HOME environment variable to use the Java trust")
 }
 
 // execKeytool will execute a "keytool" command and if needed re-execute
@@ -126,10 +147,10 @@ func execKeytool(cmd *exec.Cmd) ([]byte, error) {
 	out, err := cmd.CombinedOutput()
 	if err != nil && bytes.Contains(out, []byte("java.io.FileNotFoundException")) && runtime.GOOS != "windows" {
 		origArgs := cmd.Args[1:]
-		cmd = exec.Command("sudo", keytoolPath)
+		cmd = exec.Command("sudo", cmd.Path)
 		cmd.Args = append(cmd.Args, origArgs...)
 		cmd.Env = []string{
-			"JAVA_HOME=" + javaHome,
+			"JAVA_HOME=" + os.Getenv("JAVA_HOME"),
 		}
 		out, err = cmd.CombinedOutput()
 	}

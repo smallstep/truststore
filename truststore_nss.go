@@ -13,73 +13,97 @@ import (
 	"strings"
 )
 
-var (
+var nssDB = filepath.Join(os.Getenv("HOME"), ".pki/nssdb")
+
+// NSSTrust implements a Trust for Firefox or other NSS based applications.
+type NSSTrust struct {
 	certutilPath string
-	nssDB        = filepath.Join(os.Getenv("HOME"), ".pki/nssdb")
-)
-
-func hasNSS() bool {
-	for _, path := range []string{
-		"/usr/bin/firefox", nssDB, "/Applications/Firefox.app",
-		"/Applications/Firefox Developer Edition.app",
-		"/Applications/Firefox Nightly.app",
-		"C:\\Program Files\\Mozilla Firefox",
-	} {
-		if _, err := os.Stat(path); err == nil {
-			return true
-		}
-	}
-	// Try with user defined path
-	if path := os.Getenv("TRUSTSTORE_NSS_LOCATION"); path != "" {
-		if _, err := os.Stat(path); err == nil {
-			fmt.Println()
-			return true
-		} else {
-			println(err.Error())
-		}
-	}
-
-	debug("%s not found. Try to define the environment variable TRUSTSTORE_NSS_LOCATION", NSSBrowsers)
-	return false
 }
 
-func hasCertUtil() bool {
+// NewNSSTrust creates a new NSSTrust.
+func NewNSSTrust() (*NSSTrust, error) {
 	var err error
+	var certutilPath string
 	switch runtime.GOOS {
 	case "darwin":
 		certutilPath, err = exec.LookPath("certutil")
 		if err != nil {
-			out, err1 := exec.Command("brew", "--prefix", "nss").Output()
+			cmd := exec.Command("brew", "--prefix", "nss")
+			out, err1 := cmd.Output()
 			if err1 != nil {
-				return false
+				return nil, NewCmdError(err1, cmd, out)
 			}
 			certutilPath = filepath.Join(strings.TrimSpace(string(out)), "bin", "certutil")
-			_, err = os.Stat(certutilPath)
+			if _, err = os.Stat(certutilPath); err != nil {
+				return nil, err
+			}
 		}
-		return err == nil
 	case "linux":
-		certutilPath, err = exec.LookPath("certutil")
-		return err == nil
+		if certutilPath, err = exec.LookPath("certutil"); err != nil {
+			return nil, err
+		}
 	default:
-		return false
+		return nil, ErrTrustNotSupported
 	}
+
+	return &NSSTrust{
+		certutilPath: certutilPath,
+	}, nil
 }
 
-func checkNSS(cert *x509.Certificate) bool {
-	if !hasCertUtil() {
-		if CertutilInstallHelp == "" {
-			debug("Note: %s support is not available on your platform. ℹ️", NSSBrowsers)
-		} else {
-			debug(`Warning: "certutil" is not available, so the certificate can't be automatically installed in %s!`, NSSBrowsers)
-			debug(`Install "certutil" with "%s" and try again`, CertutilInstallHelp)
+// Name implements the Trust interface.
+func (t *NSSTrust) Name() string {
+	return "nss"
+}
+
+// Install implements the Trust interface.
+func (t *NSSTrust) Install(filename string, cert *x509.Certificate) error {
+	// install certificate in all profiles
+	if forEachNSSProfile(func(profile string) {
+		cmd := exec.Command(t.certutilPath, "-A", "-d", profile, "-t", "C,,", "-n", uniqueName(cert), "-i", filename)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			debug("failed to execute \"certutil -A\": %s\n\n%s", err, out)
 		}
-		return false
+	}) == 0 {
+		return fmt.Errorf("not NSS security databases found")
 	}
 
-	// Check if the certificate is already installed
+	// check for the cert in all profiles
+	if !t.Exists(cert) {
+		return fmt.Errorf("certificate cannot be installed in NSS security databases")
+	}
+
+	debug("certificate installed properly in NSS security databases")
+	return nil
+}
+
+// Uninstall implements the Trust interface.
+func (t *NSSTrust) Uninstall(filename string, cert *x509.Certificate) (err error) {
+	forEachNSSProfile(func(profile string) {
+		if err != nil {
+			return
+		}
+		// skip if not found
+		if err := exec.Command(t.certutilPath, "-V", "-d", profile, "-u", "L", "-n", uniqueName(cert)).Run(); err != nil {
+			return
+		}
+		// delete certificate
+		cmd := exec.Command(t.certutilPath, "-D", "-d", profile, "-n", uniqueName(cert))
+		out, err1 := cmd.CombinedOutput()
+		if err1 != nil {
+			err = NewCmdError(err1, cmd, out)
+		}
+	})
+	return
+}
+
+// Exists implements the Trust interface. Exists checks if the certificate is
+// already installed.
+func (t *NSSTrust) Exists(cert *x509.Certificate) bool {
 	success := true
 	if forEachNSSProfile(func(profile string) {
-		err := exec.Command(certutilPath, "-V", "-d", profile, "-u", "L", "-n", uniqueName(cert)).Run()
+		err := exec.Command(t.certutilPath, "-V", "-d", profile, "-u", "L", "-n", uniqueName(cert)).Run()
 		if err != nil {
 			success = false
 		}
@@ -89,46 +113,17 @@ func checkNSS(cert *x509.Certificate) bool {
 	return success
 }
 
-func installNSS(filename string, cert *x509.Certificate) error {
-	// install certificate in all profiles
-	if forEachNSSProfile(func(profile string) {
-		cmd := exec.Command(certutilPath, "-A", "-d", profile, "-t", "C,,", "-n", uniqueName(cert), "-i", filename)
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			debug("failed to execute \"certutil -A\": %s\n\n%s", err, out)
-		}
-	}) == 0 {
-		return fmt.Errorf("not %s security databases found", NSSBrowsers)
+// PreCheck implements the Trust interface.
+func (t *NSSTrust) PreCheck() error {
+	if CertutilInstallHelp == "" {
+		return fmt.Errorf("Note: NSS support is not available on your platform")
+	} else {
+		return fmt.Errorf(`Warning: "certutil" is not available, install "certutil" with "%s" and try again`, CertutilInstallHelp)
 	}
-	// check for the cert in all profiles
-	if !checkNSS(cert) {
-		return fmt.Errorf("certificate cannot be installed in %s", NSSBrowsers)
-	}
-	debug("certificate installed properly in %s", NSSBrowsers)
-	return nil
-}
-
-func uninstallNSS(filname string, cert *x509.Certificate) (err error) {
-	forEachNSSProfile(func(profile string) {
-		if err != nil {
-			return
-		}
-		// skip if not found
-		if err := exec.Command(certutilPath, "-V", "-d", profile, "-u", "L", "-n", uniqueName(cert)).Run(); err != nil {
-			return
-		}
-		// delete certificate
-		cmd := exec.Command(certutilPath, "-D", "-d", profile, "-n", uniqueName(cert))
-		out, err1 := cmd.CombinedOutput()
-		if err1 != nil {
-			err = cmdError(err1, "certutil -D", out)
-		}
-	})
-	return
 }
 
 func forEachNSSProfile(f func(profile string)) (found int) {
-	profiles, _ := filepath.Glob(FirefoxProfile)
+	profiles, _ := filepath.Glob(NSSProfile)
 	if _, err := os.Stat(nssDB); err == nil {
 		profiles = append(profiles, nssDB)
 	}
