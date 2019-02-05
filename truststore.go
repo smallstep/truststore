@@ -12,7 +12,7 @@ import (
 	"os"
 )
 
-var prefix = "Truststore Development CA "
+var prefix = ""
 var enableDebug bool
 
 func debug(format string, args ...interface{}) {
@@ -214,7 +214,14 @@ func WithPrefix(s string) Option {
 }
 
 func uniqueName(cert *x509.Certificate) string {
-	return prefix + cert.SerialNumber.String()
+	switch {
+	case prefix != "":
+		return prefix + cert.SerialNumber.String()
+	case cert.Subject.CommonName != "":
+		return cert.Subject.CommonName + " " + cert.SerialNumber.String()
+	default:
+		return "Truststore Development CA " + cert.SerialNumber.String()
+	}
 }
 
 func saveTempCert(cert *x509.Certificate) (string, func(), error) {
