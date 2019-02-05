@@ -95,6 +95,9 @@ func (t *NSSTrust) Uninstall(filename string, cert *x509.Certificate) (err error
 			err = NewCmdError(err1, cmd, out)
 		}
 	})
+	if err == nil {
+		debug("certificate uninstalled properly from NSS security databases")
+	}
 	return
 }
 
@@ -115,6 +118,10 @@ func (t *NSSTrust) Exists(cert *x509.Certificate) bool {
 
 // PreCheck implements the Trust interface.
 func (t *NSSTrust) PreCheck() error {
+	if t != nil {
+		return nil
+	}
+
 	if CertutilInstallHelp == "" {
 		return fmt.Errorf("Note: NSS support is not available on your platform")
 	} else {

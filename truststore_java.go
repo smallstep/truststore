@@ -80,6 +80,8 @@ func (t *JavaTrust) Install(filename string, cert *x509.Certificate) error {
 	if out, err := execKeytool(cmd); err != nil {
 		return NewCmdError(err, cmd, out)
 	}
+
+	debug("certificate installed properly in Java keystore")
 	return nil
 }
 
@@ -100,6 +102,8 @@ func (t *JavaTrust) Uninstall(filename string, cert *x509.Certificate) error {
 	if err != nil {
 		return NewCmdError(err, cmd, out)
 	}
+
+	debug("certificate uninstalled properly from the Java keystore")
 	return nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -216,17 +215,6 @@ func WithPrefix(s string) Option {
 
 func uniqueName(cert *x509.Certificate) string {
 	return prefix + cert.SerialNumber.String()
-}
-
-func cmdError(err error, command string, out []byte) error {
-	return fmt.Errorf("failed to execute \"%s\": %s\n\n%s", command, err, out)
-}
-
-func wrapError(err error, msg string) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%s: %s", msg, err)
 }
 
 func saveTempCert(cert *x509.Certificate) (string, func(), error) {

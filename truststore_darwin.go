@@ -13,7 +13,6 @@ import (
 	"os/exec"
 
 	plist "github.com/DHowett/go-plist"
-	"github.com/pkg/errors"
 )
 
 var (
@@ -53,7 +52,7 @@ func installPlatform(filename string, cert *x509.Certificate) error {
 	cmd := exec.Command("sudo", "security", "add-trusted-cert", "-d", "-k", "/Library/Keychains/System.keychain", filename)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return cmdError(err, "security add-trusted-cert", out)
+		return NewCmdError(err, cmd, out)
 	}
 
 	// Make trustSettings explicit, as older Go does not know the defaults.
@@ -67,7 +66,7 @@ func installPlatform(filename string, cert *x509.Certificate) error {
 	cmd = exec.Command("sudo", "security", "trust-settings-export", "-d", plistFile.Name())
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		return cmdError(err, "security trust-settings-export", out)
+		return NewCmdError(err, cmd, out)
 	}
 
 	plistData, err := ioutil.ReadFile(plistFile.Name())
@@ -101,19 +100,21 @@ func installPlatform(filename string, cert *x509.Certificate) error {
 
 	plistData, err = plist.MarshalIndent(plistRoot, plist.XMLFormat, "\t")
 	if err != nil {
-		return errors.Wrap(err, "failed to serialize trust settings")
+		return wrapError(err, "failed to serialize trust settings")
 	}
 
 	err = ioutil.WriteFile(plistFile.Name(), plistData, 0600)
 	if err != nil {
-		return errors.Wrap(err, "failed to write trust settings")
+		return wrapError(err, "failed to write trust settings")
 	}
 
 	cmd = exec.Command("sudo", "security", "trust-settings-import", "-d", plistFile.Name())
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		return errors.Errorf("failed to execute \"security trust-settings-import\": %s\n\n%s", err, out)
+		return NewCmdError(err, cmd, out)
 	}
+
+	debug("certificate installed properly in macOS keychain")
 	return nil
 }
 
@@ -121,7 +122,9 @@ func uninstallPlatform(filename string, cert *x509.Certificate) error {
 	cmd := exec.Command("sudo", "security", "remove-trusted-cert", "-d", filename)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return errors.Errorf("failed to execute \"security remove-trusted-cert\": %s\n\n%s", err, out)
+		return NewCmdError(err, cmd, out)
 	}
+
+	debug("certificate uninstalled properly from macOS keychain")
 	return nil
 }

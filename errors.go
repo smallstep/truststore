@@ -1,3 +1,5 @@
+// Copyright (c) 2018 The truststore Authors. All rights reserved.
+
 package truststore
 
 import (
@@ -64,4 +66,11 @@ func (e *CmdError) Cmd() *exec.Cmd {
 // Out returns the output of the command.
 func (e *CmdError) Out() []byte {
 	return e.out
+}
+
+func wrapError(err error, msg string) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("%s: %s", msg, err)
 }

@@ -71,6 +71,7 @@ func installPlatform(filename string, cert *x509.Certificate) error {
 		return cmdError(err, strings.Join(SystemTrustCommand, " "), out)
 	}
 
+	debug("certificate installed properly in linux trusts")
 	return nil
 }
 
@@ -91,6 +92,7 @@ func uninstallPlatform(filename string, cert *x509.Certificate) error {
 		return cmdError(err, strings.Join(SystemTrustCommand, " "), out)
 	}
 
+	debug("certificate uninstalled properly from linux trusts")
 	return nil
 }
 

@@ -40,6 +40,7 @@ func installPlatform(filename string, cert *x509.Certificate) error {
 		return wrapError(err, "add cert failed")
 	}
 
+	debug("certificate installed properly in windows trusts")
 	return nil
 }
 
@@ -61,6 +62,7 @@ func uninstallPlatform(filename string, cert *x509.Certificate) error {
 		return ErrNotFound
 	}
 
+	debug("certificate uninstalled properly from windows trusts")
 	return nil
 }
 
