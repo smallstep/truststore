@@ -62,13 +62,13 @@ func installPlatform(filename string, cert *x509.Certificate) error {
 	cmd.Stdin = bytes.NewReader(data)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return cmdError(err, "tee", out)
+		return NewCmdError(err, cmd, out)
 	}
 
 	cmd = CommandWithSudo(SystemTrustCommand...)
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		return cmdError(err, strings.Join(SystemTrustCommand, " "), out)
+		return NewCmdError(err, cmd, out)
 	}
 
 	debug("certificate installed properly in linux trusts")
@@ -83,13 +83,13 @@ func uninstallPlatform(filename string, cert *x509.Certificate) error {
 	cmd := CommandWithSudo("rm", "-f", systemTrustFilename(cert))
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return cmdError(err, "rm", out)
+		return NewCmdError(err, cmd, out)
 	}
 
 	cmd = CommandWithSudo(SystemTrustCommand...)
 	out, err = cmd.CombinedOutput()
 	if err != nil {
-		return cmdError(err, strings.Join(SystemTrustCommand, " "), out)
+		return NewCmdError(err, cmd, out)
 	}
 
 	debug("certificate uninstalled properly from linux trusts")
