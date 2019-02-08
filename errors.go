@@ -53,7 +53,7 @@ func (e *CmdError) Error() string {
 	return fmt.Sprintf("failed to execute %s: %v", name, e.err)
 }
 
-// Cmd returns the internal error.
+// Err returns the internal error.
 func (e *CmdError) Err() error {
 	return e.err
 }

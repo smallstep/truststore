@@ -124,9 +124,9 @@ func (t *NSSTrust) PreCheck() error {
 
 	if CertutilInstallHelp == "" {
 		return fmt.Errorf("Note: NSS support is not available on your platform")
-	} else {
-		return fmt.Errorf(`Warning: "certutil" is not available, install "certutil" with "%s" and try again`, CertutilInstallHelp)
 	}
+
+	return fmt.Errorf(`Warning: "certutil" is not available, install "certutil" with "%s" and try again`, CertutilInstallHelp)
 }
 
 func forEachNSSProfile(f func(profile string)) (found int) {

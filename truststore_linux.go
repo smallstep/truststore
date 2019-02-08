@@ -14,10 +14,17 @@ import (
 )
 
 var (
-	NSSProfile          = os.Getenv("HOME") + "/.mozilla/firefox/*"
+	// NSSProfile is the path of the Firefox profiles.
+	NSSProfile = os.Getenv("HOME") + "/.mozilla/firefox/*"
+
+	// CertutilInstallHelp is the command to run on linux to add NSS support.
 	CertutilInstallHelp = `apt install libnss3-tools" or "yum install nss-tools`
+
+	// SystemTrustFilename is the format used to name the root certificates.
 	SystemTrustFilename string
-	SystemTrustCommand  []string
+
+	// SystemTrustCommand is the command used to update the system truststore.
+	SystemTrustCommand []string
 )
 
 func init() {

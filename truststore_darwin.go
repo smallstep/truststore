@@ -16,7 +16,10 @@ import (
 )
 
 var (
-	NSSProfile          = os.Getenv("HOME") + "/Library/Application Support/Firefox/Profiles/*"
+	// NSSProfile is the path of the Firefox profiles.
+	NSSProfile = os.Getenv("HOME") + "/Library/Application Support/Firefox/Profiles/*"
+
+	// CertutilInstallHelp is the command to run on macOS to add NSS support.
 	CertutilInstallHelp = "brew install nss"
 )
 
