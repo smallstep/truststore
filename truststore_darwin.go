@@ -12,7 +12,7 @@ import (
 	"os"
 	"os/exec"
 
-	plist "github.com/DHowett/go-plist"
+	plist "howett.net/plist"
 )
 
 var (
