@@ -27,7 +27,7 @@ var (
 	ErrTrustNotFound = errors.New("trust does not exists")
 
 	// ErrTrustNotSupported is the error returned when a trust is not supported.
-	ErrTrustNotSupported = errors.New("trust does not exists")
+	ErrTrustNotSupported = errors.New("trust not supported")
 )
 
 // CmdError is the error used when an executable fails.
