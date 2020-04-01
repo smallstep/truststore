@@ -119,6 +119,9 @@ func (t *NSSTrust) Exists(cert *x509.Certificate) bool {
 // PreCheck implements the Trust interface.
 func (t *NSSTrust) PreCheck() error {
 	if t != nil {
+		if forEachNSSProfile(func(_ string) {}) == 0 {
+			return fmt.Errorf("not NSS security databases found")
+		}
 		return nil
 	}
 
