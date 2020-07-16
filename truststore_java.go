@@ -30,7 +30,7 @@ type JavaTrust struct {
 // NewJavaTrust initializes a new JavaTrust if the environment has java installed.
 func NewJavaTrust() (*JavaTrust, error) {
 	home := os.Getenv("JAVA_HOME")
-	if home != "" {
+	if home == "" {
 		return nil, ErrTrustNotFound
 	}
 
