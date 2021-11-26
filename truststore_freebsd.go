@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -30,7 +29,7 @@ func init() {
 		err := os.Mkdir("/usr/local/etc/ssl/certs", 0755)
 		if err != nil {
 			SystemTrustCommand = nil
-			log.Fatal(err)
+			debug(err.Error())
 			return
 		}
 	}
