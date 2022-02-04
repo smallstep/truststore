@@ -37,6 +37,9 @@ func init() {
 	} else if pathExists("/etc/ca-certificates/trust-source/anchors/") {
 		SystemTrustFilename = "/etc/ca-certificates/trust-source/anchors/%s.crt"
 		SystemTrustCommand = []string{"trust", "extract-compat"}
+	} else if pathExists("/etc/ssl/certs/") {
+		SystemTrustFilename = "/etc/ssl/certs/%s.crt"
+		SystemTrustCommand = []string{"trust", "extract-compat"}
 	}
 	if SystemTrustCommand != nil {
 		_, err := exec.LookPath(SystemTrustCommand[0])
