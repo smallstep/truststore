@@ -34,6 +34,9 @@ func init() {
 	} else if pathExists("/usr/local/share/ca-certificates/") {
 		SystemTrustFilename = "/usr/local/share/ca-certificates/%s.crt"
 		SystemTrustCommand = []string{"update-ca-certificates"}
+	} else if pathExists("/usr/shared/pki/trust/anchors/") {
+		SystemTrustFilename = "/usr/shared/pki/trust/anchors/%s.crt"
+		SystemTrustCommand = []string{"update-ca-certificates"}
 	} else if pathExists("/etc/ca-certificates/trust-source/anchors/") {
 		SystemTrustFilename = "/etc/ca-certificates/trust-source/anchors/%s.crt"
 		SystemTrustCommand = []string{"trust", "extract-compat"}
