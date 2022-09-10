@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"crypto/x509"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strings"
@@ -28,19 +27,20 @@ var (
 )
 
 func init() {
-	if pathExists("/etc/pki/ca-trust/source/anchors/") {
+	switch {
+	case pathExists("/etc/pki/ca-trust/source/anchors/"):
 		SystemTrustFilename = "/etc/pki/ca-trust/source/anchors/%s.pem"
 		SystemTrustCommand = []string{"update-ca-trust", "extract"}
-	} else if pathExists("/usr/local/share/ca-certificates/") {
+	case pathExists("/usr/local/share/ca-certificates/"):
 		SystemTrustFilename = "/usr/local/share/ca-certificates/%s.crt"
 		SystemTrustCommand = []string{"update-ca-certificates"}
-	} else if pathExists("/usr/shared/pki/trust/anchors/") {
+	case pathExists("/usr/shared/pki/trust/anchors/"):
 		SystemTrustFilename = "/usr/shared/pki/trust/anchors/%s.crt"
 		SystemTrustCommand = []string{"update-ca-certificates"}
-	} else if pathExists("/etc/ca-certificates/trust-source/anchors/") {
+	case pathExists("/etc/ca-certificates/trust-source/anchors/"):
 		SystemTrustFilename = "/etc/ca-certificates/trust-source/anchors/%s.crt"
 		SystemTrustCommand = []string{"trust", "extract-compat"}
-	} else if pathExists("/etc/ssl/certs/") {
+	case pathExists("/etc/ssl/certs/"):
 		SystemTrustFilename = "/etc/ssl/certs/%s.crt"
 		SystemTrustCommand = []string{"trust", "extract-compat"}
 	}
@@ -58,7 +58,7 @@ func pathExists(path string) bool {
 }
 
 func systemTrustFilename(cert *x509.Certificate) string {
-	return fmt.Sprintf(SystemTrustFilename, strings.Replace(uniqueName(cert), " ", "_", -1))
+	return fmt.Sprintf(SystemTrustFilename, strings.ReplaceAll(uniqueName(cert), " ", "_"))
 }
 
 func installPlatform(filename string, cert *x509.Certificate) error {
@@ -66,7 +66,7 @@ func installPlatform(filename string, cert *x509.Certificate) error {
 		return ErrNotSupported
 	}
 
-	data, err := ioutil.ReadFile(filename)
+	data, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}
@@ -111,7 +111,9 @@ func uninstallPlatform(filename string, cert *x509.Certificate) error {
 
 func CommandWithSudo(cmd ...string) *exec.Cmd {
 	if _, err := exec.LookPath("sudo"); err != nil {
+		//nolint:gosec // tolerable risk necessary for function
 		return exec.Command(cmd[0], cmd[1:]...)
 	}
+	//nolint:gosec // tolerable risk necessary for function
 	return exec.Command("sudo", append([]string{"--"}, cmd...)...)
 }
