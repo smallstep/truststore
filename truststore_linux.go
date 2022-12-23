@@ -34,8 +34,8 @@ func init() {
 	case pathExists("/usr/local/share/ca-certificates/"):
 		SystemTrustFilename = "/usr/local/share/ca-certificates/%s.crt"
 		SystemTrustCommand = []string{"update-ca-certificates"}
-	case pathExists("/usr/shared/pki/trust/anchors/"):
-		SystemTrustFilename = "/usr/shared/pki/trust/anchors/%s.crt"
+	case pathExists("/usr/share/pki/trust/anchors/"):
+		SystemTrustFilename = "/usr/share/pki/trust/anchors/%s.crt"
 		SystemTrustCommand = []string{"update-ca-certificates"}
 	case pathExists("/etc/ca-certificates/trust-source/anchors/"):
 		SystemTrustFilename = "/etc/ca-certificates/trust-source/anchors/%s.crt"
