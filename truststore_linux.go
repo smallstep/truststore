@@ -26,7 +26,7 @@ var (
 	// SystemTrustCommand is the command used to update the system truststore.
 	SystemTrustCommand []string
 
-	// whether or not the needed packages should be attemted to be installed
+	// whether or not the needed packages should be attempted to be installed
 	TryInstallCaCommand bool
 
 	// if the above is true, if we should also ignore the certs the repo is using
