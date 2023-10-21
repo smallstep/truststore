@@ -44,12 +44,6 @@ func init() {
 		SystemTrustFilename = "/etc/ssl/certs/%s.crt"
 		SystemTrustCommand = []string{"trust", "extract-compat"}
 	}
-	if SystemTrustCommand != nil {
-		_, err := exec.LookPath(SystemTrustCommand[0])
-		if err != nil {
-			SystemTrustCommand = nil
-		}
-	}
 }
 
 func pathExists(path string) bool {
