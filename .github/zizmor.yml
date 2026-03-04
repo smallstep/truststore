@@ -1,0 +1,9 @@
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "smallstep/*": ref-pin
+  secrets-inherit:
+    disable: true
+  ref-confusion:
+    disable: true
