@@ -7,3 +7,5 @@ rules:
     disable: true
   ref-confusion:
     disable: true
+  dependabot-cooldown:
+    disable: true
